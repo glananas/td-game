@@ -3,533 +3,559 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Cyber TD: Neon Siege</title>
+  <title>Core Defense: Campaign</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
     :root {
-      --bg: #070913;
-      --card-bg: rgba(18, 24, 43, 0.85);
-      --border: rgba(56, 189, 248, 0.2);
-      --accent: #00f0ff;
-      --accent-glow: rgba(0, 240, 255, 0.4);
-      --gold: #ffd700;
-      --danger: #ff0055;
+      --bg: #070a12;
+      --panel: #111827;
+      --border: #1f2937;
+      --cyan: #06b6d4;
+      --purple: #8b5cf6;
+      --gold: #f59e0b;
+      --red: #ef4444;
+    }
+    * { margin:0; padding:0; box-sizing:border-box; user-select:none; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+    body { background: var(--bg); color: #fff; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+    /* Top Stats */
+    #top-bar {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 8px 14px; background: var(--panel); border-bottom: 1px solid var(--border); font-size: 13px; font-weight: 700;
+    }
+    .stat { display: flex; align-items: center; gap: 4px; }
+
+    /* View containers */
+    .view { flex: 1; display: none; flex-direction: column; align-items: center; overflow-y: auto; position: relative; }
+    .view.active { display: flex; }
+
+    /* Canvas Area */
+    #canvas-wrap { position: relative; border-radius: 14px; overflow: hidden; border: 1px solid var(--border); margin: 6px 0; }
+    canvas { display: block; background: #0b0f19; }
+
+    /* Boss Warning Alert */
+    #boss-alert {
+      position: absolute; top: 15px; left: 0; right: 0; background: rgba(239, 68, 68, 0.9);
+      color: white; font-weight: 900; text-align: center; padding: 6px; font-size: 13px;
+      letter-spacing: 1px; display: none; z-index: 5; text-transform: uppercase;
+      box-shadow: 0 0 15px rgba(239,68,68,0.5);
     }
 
-    * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; font-family: 'Segoe UI', Roboto, sans-serif; }
-
-    body {
-      background: radial-gradient(circle at 50% 20%, #151d3b 0%, var(--bg) 100%);
-      color: #fff;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      overflow: hidden;
+    /* Active Commander Skills */
+    #skills-bar {
+      width: 350px; display: flex; gap: 8px; margin-bottom: 6px;
     }
-
-    /* Верхняя панель */
-    #header {
-      width: 94%;
-      max-width: 380px;
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 10px;
-      z-index: 2;
+    .skill-btn {
+      flex: 1; background: #1f2937; border: 1px solid var(--border); border-radius: 8px;
+      color: #fff; padding: 6px; font-size: 11px; font-weight: bold; cursor: pointer;
+      display: flex; flex-direction: column; align-items: center; gap: 2px; transition: 0.1s;
     }
+    .skill-btn:active:not(:disabled) { border-color: var(--cyan); transform: scale(0.96); }
+    .skill-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-    .badge {
-      background: var(--card-bg);
-      backdrop-filter: blur(12px);
-      border: 1px solid var(--border);
-      padding: 8px 14px;
-      border-radius: 14px;
-      font-weight: 800;
-      font-size: 14px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    /* Tower Context Modal */
+    #tower-panel {
+      position: absolute; bottom: 8px; left: 8px; right: 8px;
+      background: rgba(17, 24, 39, 0.96); backdrop-filter: blur(10px);
+      border: 1px solid var(--cyan); border-radius: 12px; padding: 10px;
+      display: none; flex-direction: column; gap: 6px; z-index: 10;
     }
-    .badge.gold { color: var(--gold); border-color: rgba(255, 215, 0, 0.3); }
-    .badge.hp { color: var(--danger); border-color: rgba(255, 0, 85, 0.3); }
-    .badge.wave { color: var(--accent); }
-
-    /* Обертка поля с эффектом тряски */
-    #shake-wrapper {
-      position: relative;
-      border-radius: 20px;
-      overflow: hidden;
-      box-shadow: 0 0 35px rgba(0, 240, 255, 0.15), 0 10px 40px rgba(0,0,0,0.8);
-      border: 2px solid var(--border);
-      transition: transform 0.05s ease;
+    .panel-row { display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; color: var(--cyan); }
+    .cards-row { display: flex; gap: 6px; }
+    .card {
+      flex: 1; background: #1e293b; border: 1px solid var(--border); border-radius: 8px;
+      padding: 6px; text-align: center; cursor: pointer;
     }
+    .card .name { font-size: 11px; font-weight: bold; }
+    .card .cost { font-size: 11px; color: var(--gold); }
 
-    canvas { display: block; background: #0c1021; }
-
-    /* Кнопки внизу */
-    #controls {
-      width: 94%;
-      max-width: 380px;
-      margin-top: 12px;
-      display: flex;
-      gap: 10px;
-      z-index: 2;
+    /* Campaign Sectors Screen */
+    .sector-card {
+      width: 90%; max-width: 380px; background: var(--panel); border: 1px solid var(--border);
+      border-radius: 12px; padding: 14px; margin-top: 10px; display: flex; justify-content: space-between; align-items: center;
     }
+    .sector-card.locked { opacity: 0.4; filter: grayscale(1); }
 
-    .neon-btn {
-      flex: 1;
-      background: linear-gradient(135deg, #00b4d8 0%, #0077b6 100%);
-      color: #fff;
-      border: none;
-      padding: 14px 20px;
-      border-radius: 14px;
-      font-size: 15px;
-      font-weight: 900;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      cursor: pointer;
-      box-shadow: 0 0 20px rgba(0, 180, 216, 0.4);
-      transition: all 0.2s;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
+    /* Bottom Nav */
+    #nav-bar {
+      display: flex; background: var(--panel); border-top: 1px solid var(--border);
+      padding: 6px 12px 12px; gap: 6px;
     }
-    .neon-btn:active { transform: scale(0.96); filter: brightness(1.2); }
-
-    /* Модалки */
-    .overlay {
-      position: absolute;
-      inset: 0;
-      background: rgba(7, 9, 19, 0.92);
-      backdrop-filter: blur(10px);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
-      text-align: center;
-      z-index: 10;
-      transition: opacity 0.3s;
+    .nav-btn {
+      flex: 1; padding: 8px 0; background: none; border: none; color: #6b7280;
+      font-size: 11px; font-weight: 700; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px;
+      border-radius: 8px;
     }
-    .overlay.hidden { opacity: 0; pointer-events: none; }
+    .nav-btn.active { color: var(--cyan); background: rgba(6, 182, 212, 0.08); }
 
-    .modal-card {
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      border-radius: 22px;
-      padding: 26px;
-      max-width: 320px;
-      box-shadow: 0 0 40px rgba(0, 240, 255, 0.2);
-    }
-
-    .modal-title {
-      font-size: 22px;
-      font-weight: 900;
-      color: #fff;
-      margin-bottom: 12px;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      text-shadow: 0 0 10px var(--accent);
+    /* Action Buttons */
+    .action-btn {
+      width: 350px; background: linear-gradient(135deg, #0284c7, #0369a1);
+      border: none; color: white; padding: 10px; border-radius: 10px; font-weight: 800;
+      cursor: pointer; font-size: 13px;
     }
   </style>
 </head>
 <body>
 
-  <!-- Статы -->
-  <div id="header">
-    <div class="badge hp">❤️ <span id="lives">20</span></div>
-    <div class="badge gold">💰 <span id="gold">250</span></div>
-    <div class="badge wave">👾 ВОЛНА <span id="wave">1</span></div>
+  <!-- Top bar -->
+  <div id="top-bar">
+    <div class="stat" style="color:var(--red);">❤️ <span id="lives-val">20</span></div>
+    <div class="stat" style="color:var(--gold);">🟡 <span id="gold-val">220</span></div>
+    <div class="stat" style="color:var(--purple);">🧬 <span id="crystals-val">0</span></div>
+    <div class="stat" style="color:var(--cyan);"><span id="sector-title">СЕКТОР 1</span></div>
   </div>
 
-  <div id="shake-wrapper">
-    <canvas id="gameCanvas" width="360" height="500"></canvas>
+  <!-- VIEW 1: BATTLE -->
+  <div id="battle-view" class="view active">
+    <div id="canvas-wrap">
+      <div id="boss-alert">⚠️ ВНИМАНИЕ: ПРИБЛИЖАЕТСЯ БОСС! ⚠️</div>
+      <canvas id="gameCanvas" width="350" height="420"></canvas>
 
-    <!-- Экран старта -->
-    <div id="startOverlay" class="overlay">
-      <div class="modal-card">
-        <h2 class="modal-title">⚡ NEON SIEGE</h2>
-        <p style="font-size: 13px; color: #94a3b8; line-height: 1.6; margin-bottom: 20px;">
-          Монстры атакуют реактор!<br><br>
-          🔹 <b>Тапай на платформы</b>, чтобы ставить турели.<br>
-          🔹 Улучшай оборону за золото.<br>
-          🔊 Включи звук для полного погружения!
-        </p>
-        <button id="startBtn" class="neon-btn">В бой! ⚔️</button>
+      <!-- Tower Building/Upgrade Panel -->
+      <div id="tower-panel">
+        <div class="panel-row">
+          <span id="panel-title">УСТАНОВКА ТУРЕЛИ</span>
+          <span onclick="closeTowerPanel()" style="cursor:pointer;">✕</span>
+        </div>
+        <div class="cards-row" id="build-cards">
+          <div class="card" onclick="buildTower('gun')"><div class="name">⚡ Плазма</div><div class="cost">100 🟡</div></div>
+          <div class="card" onclick="buildTower('frost')"><div class="name">❄️ Крио</div><div class="cost">140 🟡</div></div>
+          <div class="card" onclick="buildTower('rocket')"><div class="name">💥 Ракеты</div><div class="cost">200 🟡</div></div>
+        </div>
+        <div id="upgrade-box" style="display:none;">
+          <button class="action-btn" id="upgrade-btn" style="background:#10b981; width:100%;">Улучшить турель</button>
+        </div>
       </div>
     </div>
 
-    <!-- Game Over -->
-    <div id="gameOverOverlay" class="overlay hidden">
-      <div class="modal-card">
-        <h2 class="modal-title" style="color:var(--danger); text-shadow:0 0 10px var(--danger);">РЕАКТОР СЛОМАН</h2>
-        <p style="font-size: 14px; color: #94a3b8; margin-bottom: 20px;">Отражено волн: <span id="finalWave" style="color:#00f0ff; font-weight:bold;">1</span></p>
-        <button id="restartBtn" class="neon-btn">Реванш 🔄</button>
+    <!-- Active Commander Skills -->
+    <div id="skills-bar">
+      <button class="skill-btn" id="skill-emp" onclick="useSkill('emp')">
+        <span>⚡ ЭМИ-Шок</span><span id="cd-emp" style="color:var(--cyan);">ГОТОВ</span>
+      </button>
+      <button class="skill-btn" id="skill-nuke" onclick="useSkill('nuke')">
+        <span>🚀 Орбитальный залп</span><span id="cd-nuke" style="color:var(--red);">ГОТОВ</span>
+      </button>
+    </div>
+
+    <button class="action-btn" id="wave-btn">▶ НАЧАТЬ ВОЛНУ 1</button>
+  </div>
+
+  <!-- VIEW 2: CAMPAIGN SECTORS -->
+  <div id="campaign-view" class="view">
+    <h3 style="margin: 16px 0 6px;">🗺️ Кампания секторов</h3>
+    <p style="font-size:12px; color:#6b7280; margin-bottom:12px;">Пройди 15 волн сектора, чтобы открыть следующий биом!</p>
+
+    <div class="sector-card" onclick="selectSector(1)">
+      <div>
+        <div style="font-weight:bold; font-size:14px;">Сектор 1: Неоновая Лаборатория</div>
+        <div style="font-size:11px; color:#10b981;">Доступен • Рекорд волн: <span id="rec-1">0</span>/15</div>
       </div>
+      <button class="skill-btn" style="padding:6px 12px;">Вход</button>
+    </div>
+
+    <div class="sector-card" id="card-sec-2" onclick="selectSector(2)">
+      <div>
+        <div style="font-weight:bold; font-size:14px;">Сектор 2: Пустошь Реактора</div>
+        <div style="font-size:11px; color:#6b7280;" id="sec-2-status">Требуется 15 волна Сектора 1</div>
+      </div>
+      <button class="skill-btn" id="btn-sec-2" style="padding:6px 12px;" disabled>🔒</button>
+    </div>
+
+    <div class="sector-card" id="card-sec-3" onclick="selectSector(3)">
+      <div>
+        <div style="font-weight:bold; font-size:14px;">Сектор 3: Квантовое Ядро</div>
+        <div style="font-size:11px; color:#6b7280;" id="sec-3-status">Требуется 15 волна Сектора 2</div>
+      </div>
+      <button class="skill-btn" id="btn-sec-3" style="padding:6px 12px;" disabled>🔒</button>
     </div>
   </div>
 
-  <div id="controls">
-    <button id="nextWaveBtn" class="neon-btn">
-      <span>▶ Запустить волну</span>
-    </button>
+  <!-- VIEW 3: LAB (PERMANENT UPGRADES) -->
+  <div id="lab-view" class="view">
+    <h3 style="margin: 16px 0 6px;">🔬 Лаборатория Ядра</h3>
+    <p style="font-size:12px; color:#6b7280; margin-bottom:14px;">Вечные улучшения базы за наноматериалы 🧬</p>
+
+    <div class="sector-card">
+      <div>
+        <div style="font-weight:bold; font-size:13px;">Прочность Ядра (HP)</div>
+        <div style="font-size:11px; color:var(--cyan);">Ур. <span id="lvl-hp">1</span> (+5 HP)</div>
+      </div>
+      <button class="skill-btn" style="background:var(--purple); padding:6px 14px;" onclick="upgradeTalent('hp')"><span id="cost-hp">40</span> 🧬</button>
+    </div>
+
+    <div class="sector-card">
+      <div>
+        <div style="font-weight:bold; font-size:13px;">Плазменный разгон (Урон)</div>
+        <div style="font-size:11px; color:var(--cyan);">Ур. <span id="lvl-dmg">1</span> (+12% урона)</div>
+      </div>
+      <button class="skill-btn" style="background:var(--purple); padding:6px 14px;" onclick="upgradeTalent('dmg')"><span id="cost-dmg">60</span> 🧬</button>
+    </div>
+
+    <div class="sector-card">
+      <div>
+        <div style="font-weight:bold; font-size:13px;">Стартовый капитал (🟡)</div>
+        <div style="font-size:11px; color:var(--cyan);">Ур. <span id="lvl-gold">1</span> (+40 стартового золота)</div>
+      </div>
+      <button class="skill-btn" style="background:var(--purple); padding:6px 14px;" onclick="upgradeTalent('gold')"><span id="cost-gold">80</span> 🧬</button>
+    </div>
+  </div>
+
+  <!-- Bottom Tabs -->
+  <div id="nav-bar">
+    <button class="nav-btn active" onclick="switchTab('battle')"><span>🛡️</span><span>Оборона</span></button>
+    <button class="nav-btn" onclick="switchTab('campaign')"><span>🗺️</span><span>Секторы</span></button>
+    <button class="nav-btn" onclick="switchTab('lab')"><span>🔬</span><span>Лаборатория</span></button>
   </div>
 
   <script>
-    const tg = window.Telegram?.WebApp;
-    if (tg) { tg.expand(); tg.ready(); }
+    // --- PERSISTENCE ---
+    let save = JSON.parse(localStorage.getItem('core_td_v3')) || {
+      crystals: 0,
+      unlockedSector: 1,
+      records: { 1: 0, 2: 0, 3: 0 },
+      talents: { hp: 1, dmg: 1, gold: 1 }
+    };
+    function persist() { localStorage.setItem('core_td_v3', JSON.stringify(save)); }
 
-    // --- ЗВУКОВОЙ СИНТЕЗАТОР (Web Audio API) ---
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    let audioCtx = null;
+    let currentSector = 1;
+    let wave = 1;
+    let waveActive = false;
+    let maxLives = 20 + (save.talents.hp - 1) * 5;
+    let lives = maxLives;
+    let gold = 220 + (save.talents.gold - 1) * 40;
 
-    function initAudio() {
-      if (!audioCtx) audioCtx = new AudioCtx();
-      if (audioCtx.state === 'suspended') audioCtx.resume();
-    }
-
-    function playSound(type) {
-      if (!audioCtx) return;
-      const t = audioCtx.currentTime;
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-
-      if (type === 'laser') {
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(800, t);
-        osc.frequency.exponentialRampToValueAtTime(100, t + 0.12);
-        gain.gain.setValueAtTime(0.15, t);
-        gain.gain.linearRampToValueAtTime(0.01, t + 0.12);
-        osc.start(t); osc.stop(t + 0.12);
-      } else if (type === 'coin') {
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(987, t);
-        osc.frequency.setValueAtTime(1318, t + 0.08);
-        gain.gain.setValueAtTime(0.2, t);
-        gain.gain.linearRampToValueAtTime(0.01, t + 0.25);
-        osc.start(t); osc.stop(t + 0.25);
-      } else if (type === 'explode') {
-        osc.type = 'square';
-        osc.frequency.setValueAtTime(120, t);
-        osc.frequency.exponentialRampToValueAtTime(30, t + 0.2);
-        gain.gain.setValueAtTime(0.3, t);
-        gain.gain.linearRampToValueAtTime(0.01, t + 0.2);
-        osc.start(t); osc.stop(t + 0.2);
-      } else if (type === 'build') {
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(200, t);
-        osc.frequency.exponentialRampToValueAtTime(600, t + 0.15);
-        gain.gain.setValueAtTime(0.2, t);
-        gain.gain.linearRampToValueAtTime(0.01, t + 0.15);
-        osc.start(t); osc.stop(t + 0.15);
+    // --- SKILL COOLDOWNS ---
+    let skillsCD = { emp: 0, nuke: 0 };
+    function useSkill(type) {
+      if (skillsCD[type] > 0 || !waveActive) return;
+      if (type === 'emp') {
+        skillsCD.emp = 25; // 25s
+        enemies.forEach(e => e.stun = 180); // 3 sec stun
+      } else if (type === 'nuke') {
+        skillsCD.nuke = 45; // 45s
+        enemies.forEach(e => e.hp -= 200);
       }
     }
 
-    // --- ИГРОВЫЕ ПЕРЕМЕННЫЕ ---
-    const canvas = document.getElementById('gameCanvas');
-    const ctx = canvas.getContext('2d');
-    const shakeWrapper = document.getElementById('shake-wrapper');
+    setInterval(() => {
+      ['emp', 'nuke'].forEach(k => {
+        if (skillsCD[k] > 0) {
+          skillsCD[k]--;
+          document.getElementById(`cd-${k}`).innerText = `${skillsCD[k]}c`;
+          document.getElementById(`skill-${k}`).disabled = true;
+        } else {
+          document.getElementById(`cd-${k}`).innerText = 'ГОТОВ';
+          document.getElementById(`skill-${k}`).disabled = false;
+        }
+      });
+    }, 1000);
 
-    let gold = 250;
-    let lives = 20;
-    let wave = 1;
-    let waveActive = false;
-
-    // Враги: типы с разными эмодзи и параметрами
-    const ENEMY_TYPES = [
-      { emoji: '👾', hpMod: 1, speed: 1.4, reward: 25 },
-      { emoji: '🕷️', hpMod: 0.7, speed: 1.9, reward: 20 },
-      { emoji: '🤖', hpMod: 2.2, speed: 0.9, reward: 40 },
-      { emoji: '👹', hpMod: 4.5, speed: 0.7, reward: 80 } // Босс
-    ];
-
-    const path = [
-      {x: 40, y: 0},
-      {x: 40, y: 130},
-      {x: 320, y: 130},
-      {x: 320, y: 310},
-      {x: 70, y: 310},
-      {x: 70, y: 500}
-    ];
+    // --- SECTOR PATHS ---
+    const SECTOR_PATHS = {
+      1: [{x:30,y:0},{x:30,y:120},{x:320,y:120},{x:320,y:260},{x:60,y:260},{x:60,y:420}],
+      2: [{x:175,y:0},{x:175,y:100},{x:40,y:100},{x:40,y:300},{x:310,y:300},{x:310,y:420}],
+      3: [{x:320,y:0},{x:320,y:180},{x:60,y:180},{x:60,y:320},{x:280,y:320},{x:280,y:420}]
+    };
 
     const spots = [
-      {x: 100, y: 70, tower: null},
-      {x: 250, y: 70, tower: null},
-      {x: 180, y: 220, tower: null},
-      {x: 30, y: 240, tower: null},
-      {x: 140, y: 390, tower: null}
+      {x: 80, y: 65, tower: null}, {x: 240, y: 65, tower: null},
+      {x: 180, y: 190, tower: null}, {x: 35, y: 200, tower: null},
+      {x: 150, y: 320, tower: null}
     ];
 
+    let selectedSpot = null;
     let enemies = [];
     let projectiles = [];
-    let particles = [];
-    let popups = [];
 
-    // --- СОБЫТИЯ ---
-    document.getElementById('startBtn').addEventListener('click', () => {
-      initAudio();
-      document.getElementById('startOverlay').classList.add('hidden');
-      startWave();
-    });
+    const TOWER_SPECS = {
+      gun: { name: 'Плазма', color: '#06b6d4', cost: 100, range: 105, dmg: 20, rate: 18 },
+      frost: { name: 'Крио', color: '#38bdf8', cost: 140, range: 85, dmg: 5, rate: 35, slow: 0.5 },
+      rocket: { name: 'Ракеты', color: '#f43f5e', cost: 200, range: 130, dmg: 65, rate: 55 }
+    };
 
-    document.getElementById('restartBtn').addEventListener('click', resetGame);
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
 
+    // Tap Handling
     canvas.addEventListener('click', (e) => {
-      initAudio();
       const rect = canvas.getBoundingClientRect();
       const x = (e.clientX - rect.left) * (canvas.width / rect.width);
       const y = (e.clientY - rect.top) * (canvas.height / rect.height);
 
-      spots.forEach(spot => {
-        if (Math.hypot(spot.x - x, spot.y - y) < 28) {
-          if (!spot.tower && gold >= 100) {
-            gold -= 100;
-            spot.tower = { range: 110, damage: 30, cooldown: 22, timer: 0, angle: 0 };
-            playSound('build');
-            createExplosion(spot.x, spot.y, '#00f0ff', 12);
-            updateUI();
-          } else if (!spot.tower) {
-            triggerShake(4);
-            if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('error');
+      let found = spots.find(s => Math.hypot(s.x - x, s.y - y) < 25);
+      if (found) {
+        selectedSpot = found;
+        openPanel(found);
+      } else {
+        closeTowerPanel();
+      }
+    });
+
+    function openPanel(spot) {
+      const p = document.getElementById('tower-panel');
+      p.style.display = 'flex';
+      if (!spot.tower) {
+        document.getElementById('panel-title').innerText = "УСТАНОВКА ТУРЕЛИ";
+        document.getElementById('build-cards').style.display = 'flex';
+        document.getElementById('upgrade-box').style.display = 'none';
+      } else {
+        document.getElementById('panel-title').innerText = `${spot.tower.name} Lv.${spot.tower.lvl}`;
+        document.getElementById('build-cards').style.display = 'none';
+        document.getElementById('upgrade-box').style.display = 'block';
+        const cost = spot.tower.lvl * 95;
+        const btn = document.getElementById('upgrade-btn');
+        btn.innerText = `Улучшить до Lv.${spot.tower.lvl+1} (${cost} 🟡)`;
+        btn.onclick = () => {
+          if (gold >= cost) {
+            gold -= cost; spot.tower.lvl++;
+            spot.tower.dmg = Math.round(spot.tower.dmg * 1.4);
+            spot.tower.range += 10;
+            updateStats(); closeTowerPanel();
           }
-        }
-      });
-    });
-
-    document.getElementById('nextWaveBtn').addEventListener('click', () => {
-      initAudio();
-      if (!waveActive) startWave();
-    });
-
-    function triggerShake(intensity = 6) {
-      shakeWrapper.style.transform = `translate(${(Math.random()-0.5)*intensity}px, ${(Math.random()-0.5)*intensity}px)`;
-      setTimeout(() => shakeWrapper.style.transform = 'translate(0,0)', 60);
-    }
-
-    function createExplosion(x, y, color, count = 15) {
-      for (let i = 0; i < count; i++) {
-        const speed = Math.random() * 4 + 1;
-        const angle = Math.random() * Math.PI * 2;
-        particles.push({
-          x, y,
-          vx: Math.cos(angle) * speed,
-          vy: Math.sin(angle) * speed,
-          color,
-          life: 25,
-          maxLife: 25,
-          size: Math.random() * 3 + 2
-        });
+        };
       }
     }
 
+    function closeTowerPanel() { document.getElementById('tower-panel').style.display = 'none'; selectedSpot = null; }
+
+    function buildTower(type) {
+      const spec = TOWER_SPECS[type];
+      if (selectedSpot && !selectedSpot.tower && gold >= spec.cost) {
+        gold -= spec.cost;
+        const dmgMult = 1 + (save.talents.dmg - 1) * 0.12;
+        selectedSpot.tower = { ...spec, dmg: spec.dmg * dmgMult, lvl: 1, timer: 0 };
+        updateStats(); closeTowerPanel();
+      }
+    }
+
+    // --- NAVIGATION & SECTOR SELECTION ---
+    function switchTab(t) {
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+      if (t === 'battle') {
+        document.getElementById('battle-view').classList.add('active');
+        document.querySelectorAll('.nav-btn')[0].classList.add('active');
+      } else if (t === 'campaign') {
+        document.getElementById('campaign-view').classList.add('active');
+        document.querySelectorAll('.nav-btn')[1].classList.add('active');
+        updateCampaignUI();
+      } else {
+        document.getElementById('lab-view').classList.add('active');
+        document.querySelectorAll('.nav-btn')[2].classList.add('active');
+        updateLabUI();
+      }
+    }
+
+    function updateCampaignUI() {
+      document.getElementById('rec-1').innerText = save.records[1];
+      if (save.unlockedSector >= 2) {
+        document.getElementById('card-sec-2').classList.remove('locked');
+        document.getElementById('btn-sec-2').disabled = false;
+        document.getElementById('btn-sec-2').innerText = 'Вход';
+        document.getElementById('sec-2-status').innerText = `Доступен • Рекорд: ${save.records[2]}/15`;
+        document.getElementById('sec-2-status').style.color = '#10b981';
+      }
+      if (save.unlockedSector >= 3) {
+        document.getElementById('card-sec-3').classList.remove('locked');
+        document.getElementById('btn-sec-3').disabled = false;
+        document.getElementById('btn-sec-3').innerText = 'Вход';
+        document.getElementById('sec-3-status').innerText = `Доступен • Рекорд: ${save.records[3]}/15`;
+        document.getElementById('sec-3-status').style.color = '#10b981';
+      }
+    }
+
+    function selectSector(s) {
+      if (save.unlockedSector < s) return;
+      currentSector = s;
+      document.getElementById('sector-title').innerText = `СЕКТОР ${s}`;
+      resetBattle();
+      switchTab('battle');
+    }
+
+    function updateLabUI() {
+      ['hp', 'dmg', 'gold'].forEach(k => {
+        document.getElementById(`lvl-${k}`).innerText = save.talents[k];
+        document.getElementById(`cost-${k}`).innerText = save.talents[k] * 40;
+      });
+      document.getElementById('crystals-val').innerText = save.crystals;
+    }
+
+    function upgradeTalent(k) {
+      const cost = save.talents[k] * 40;
+      if (save.crystals >= cost) {
+        save.crystals -= cost; save.talents[k]++;
+        persist(); updateLabUI(); updateStats();
+      }
+    }
+
+    function resetBattle() {
+      wave = 1; waveActive = false;
+      maxLives = 20 + (save.talents.hp - 1) * 5; lives = maxLives;
+      gold = 220 + (save.talents.gold - 1) * 40;
+      enemies = []; projectiles = []; spots.forEach(s => s.tower = null);
+      updateStats();
+      const btn = document.getElementById('wave-btn');
+      btn.disabled = false; btn.innerText = `▶ НАЧАТЬ ВОЛНУ 1`;
+    }
+
+    // --- WAVE LOGIC WITH BOSSES ---
+    document.getElementById('wave-btn').onclick = () => { if (!waveActive) startWave(); };
+
     function startWave() {
       waveActive = true;
-      const btn = document.getElementById('nextWaveBtn');
-      btn.disabled = true;
-      btn.style.opacity = '0.5';
+      document.getElementById('wave-btn').disabled = true;
+
+      const isBoss = (wave % 5 === 0);
+      if (isBoss) {
+        document.getElementById('boss-alert').style.display = 'block';
+        setTimeout(() => document.getElementById('boss-alert').style.display = 'none', 3000);
+      }
 
       let count = 5 + wave * 2;
       for (let i = 0; i < count; i++) {
         setTimeout(() => {
-          let type = ENEMY_TYPES[0];
-          if (wave >= 2 && i % 3 === 0) type = ENEMY_TYPES[1];
-          if (wave >= 3 && i % 4 === 0) type = ENEMY_TYPES[2];
-          if (i === count - 1 && wave % 2 === 0) type = ENEMY_TYPES[3]; // Босс
+          const path = SECTOR_PATHS[currentSector];
+          const isBossUnit = isBoss && (i === count - 1);
 
           enemies.push({
             x: path[0].x, y: path[0].y, pathIndex: 0,
-            hp: (40 + wave * 18) * type.hpMod,
-            maxHp: (40 + wave * 18) * type.hpMod,
-            speed: type.speed,
-            emoji: type.emoji,
-            reward: type.reward
+            hp: isBossUnit ? (300 + wave * 90) : (45 + wave * 20),
+            maxHp: isBossUnit ? (300 + wave * 90) : (45 + wave * 20),
+            speed: isBossUnit ? 0.7 : (1.3 + wave * 0.05),
+            isBoss: isBossUnit,
+            slow: 0, stun: 0
           });
         }, i * 600);
       }
     }
 
-    function resetGame() {
-      gold = 250; lives = 20; wave = 1;
-      enemies = []; projectiles = []; particles = []; spots.forEach(s => s.tower = null);
-      updateUI();
-      document.getElementById('gameOverOverlay').classList.add('hidden');
-      startWave();
+    function updateStats() {
+      document.getElementById('lives-val').innerText = lives;
+      document.getElementById('gold-val').innerText = gold;
+      document.getElementById('crystals-val').innerText = save.crystals;
     }
 
-    function updateUI() {
-      document.getElementById('gold').innerText = gold;
-      document.getElementById('lives').innerText = lives;
-      document.getElementById('wave').innerText = wave;
-    }
-
-    // --- ГЛАВНЫЙ ЦИКЛ РЕНДЕРА ---
+    // --- GAME LOOP ---
     function gameLoop() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      const curPath = SECTOR_PATHS[currentSector];
 
-      // Фон с кибер-сеткой
-      ctx.strokeStyle = "rgba(0, 240, 255, 0.05)";
-      ctx.lineWidth = 1;
-      for (let x = 0; x < canvas.width; x += 25) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke(); }
-      for (let y = 0; y < canvas.height; y += 25) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke(); }
-
-      // Дорожка врагов с неоновым свечением
-      ctx.strokeStyle = '#161d36';
-      ctx.lineWidth = 34;
-      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-      ctx.beginPath(); ctx.moveTo(path[0].x, path[0].y);
-      for (let i = 1; i < path.length; i++) ctx.lineTo(path[i].x, path[i].y);
+      // Draw Path
+      ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 26; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.beginPath(); ctx.moveTo(curPath[0].x, curPath[0].y);
+      for(let p of curPath) ctx.lineTo(p.x, p.y);
       ctx.stroke();
 
-      ctx.strokeStyle = 'rgba(0, 240, 255, 0.3)';
-      ctx.lineWidth = 4;
-      ctx.stroke();
+      ctx.strokeStyle = (currentSector === 1 ? '#06b6d4' : (currentSector === 2 ? '#f59e0b' : '#a855f7'));
+      ctx.lineWidth = 2; ctx.stroke();
 
-      // Отрисовка баз для башен
-      spots.forEach(spot => {
-        // Базовый пьедестал
-        ctx.fillStyle = '#10172c';
-        ctx.strokeStyle = spot.tower ? '#00f0ff' : '#334155';
-        ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(spot.x, spot.y, 20, 0, Math.PI * 2);
-        ctx.fill(); ctx.stroke();
+      // Towers
+      spots.forEach(s => {
+        ctx.fillStyle = s.tower ? s.tower.color : '#1e293b';
+        ctx.beginPath(); ctx.arc(s.x, s.y, 16, 0, Math.PI*2); ctx.fill();
 
-        if (spot.tower) {
-          // Поворот турели к цели
-          const target = enemies.find(e => Math.hypot(e.x - spot.x, e.y - spot.y) <= spot.tower.range);
-          if (target) {
-            spot.tower.angle = Math.atan2(target.y - spot.y, target.x - spot.x);
-            spot.tower.timer++;
-            if (spot.tower.timer >= spot.tower.cooldown) {
-              projectiles.push({ x: spot.x, y: spot.y, target, damage: spot.tower.damage });
-              playSound('laser');
-              spot.tower.timer = 0;
+        if (s === selectedSpot && s.tower) {
+          ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.arc(s.x, s.y, s.tower.range, 0, Math.PI*2); ctx.stroke();
+        }
+
+        if (s.tower) {
+          s.tower.timer++;
+          if (s.tower.timer >= s.tower.rate) {
+            const target = enemies.find(e => Math.hypot(e.x - s.x, e.y - s.y) <= s.tower.range);
+            if (target) {
+              projectiles.push({ x: s.x, y: s.y, target, tower: s.tower });
+              s.tower.timer = 0;
             }
           }
-
-          // Рисуем футуристичную пушку
-          ctx.save();
-          ctx.translate(spot.x, spot.y);
-          ctx.rotate(spot.tower.angle);
-          // Ствол
-          ctx.fillStyle = '#00f0ff';
-          ctx.fillRect(0, -4, 18, 8);
-          // Корпус
-          ctx.fillStyle = '#ffffff';
-          ctx.beginPath(); ctx.arc(0, 0, 10, 0, Math.PI * 2); ctx.fill();
-          ctx.restore();
-        } else {
-          ctx.fillStyle = '#475569';
-          ctx.font = 'bold 18px sans-serif';
-          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-          ctx.fillText('⚡', spot.x, spot.y);
         }
       });
 
-      // Отрисовка и логика врагов
+      // Enemies
       for (let i = enemies.length - 1; i >= 0; i--) {
         const e = enemies[i];
-        const targetPoint = path[e.pathIndex + 1];
-
-        if (targetPoint) {
-          const angle = Math.atan2(targetPoint.y - e.y, targetPoint.x - e.x);
-          e.x += Math.cos(angle) * e.speed;
-          e.y += Math.sin(angle) * e.speed;
-          if (Math.hypot(targetPoint.x - e.x, targetPoint.y - e.y) < 3) e.pathIndex++;
-        } else {
-          enemies.splice(i, 1);
-          lives--;
-          triggerShake(10);
-          playSound('explode');
-          updateUI();
-          if (lives <= 0) {
-            document.getElementById('finalWave').innerText = wave;
-            document.getElementById('gameOverOverlay').classList.remove('hidden');
+        if (e.stun > 0) { e.stun--; }
+        else {
+          let spd = e.slow > 0 ? e.speed * 0.5 : e.speed;
+          if (e.slow > 0) e.slow--;
+          const target = curPath[e.pathIndex + 1];
+          if (target) {
+            const ang = Math.atan2(target.y - e.y, target.x - e.x);
+            e.x += Math.cos(ang) * spd; e.y += Math.sin(ang) * spd;
+            if (Math.hypot(target.x - e.x, target.y - e.y) < 3) e.pathIndex++;
+          } else {
+            enemies.splice(i, 1);
+            lives -= e.isBoss ? 5 : 1;
+            updateStats();
+            if (lives <= 0) {
+              alert(`Сектор потерян! Получено: ${wave * 12} 🧬 наноматериалов.`);
+              save.crystals += wave * 12;
+              if (wave > save.records[currentSector]) save.records[currentSector] = wave;
+              persist(); resetBattle();
+            }
+            continue;
           }
-          continue;
         }
 
-        // Рендер живого эмодзи-монстра
-        ctx.font = '22px sans-serif';
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText(e.emoji, e.x, e.y);
+        // Render Enemy (Regular vs Boss)
+        ctx.fillStyle = e.isBoss ? '#ef4444' : (e.slow > 0 ? '#38bdf8' : '#f59e0b');
+        ctx.beginPath(); ctx.arc(e.x, e.y, e.isBoss ? 15 : 8, 0, Math.PI*2); ctx.fill();
 
-        // Полоска здоровья
-        ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.fillRect(e.x - 14, e.y - 18, 28, 4);
-        ctx.fillStyle = '#00ff88';
-        ctx.fillRect(e.x - 14, e.y - 18, Math.max(0, (e.hp / e.maxHp) * 28), 4);
+        // HP Bar
+        ctx.fillStyle = '#374151'; ctx.fillRect(e.x - 12, e.y - (e.isBoss?22:14), 24, 3);
+        ctx.fillStyle = '#10b981'; ctx.fillRect(e.x - 12, e.y - (e.isBoss?22:14), Math.max(0, (e.hp/e.maxHp)*24), 3);
       }
 
-      // Снаряды
+      // Projectiles
       for (let i = projectiles.length - 1; i >= 0; i--) {
         const p = projectiles[i];
-        const angle = Math.atan2(p.target.y - p.y, p.target.x - p.x);
-        p.x += Math.cos(angle) * 9;
-        p.y += Math.sin(angle) * 9;
+        const ang = Math.atan2(p.target.y - p.y, p.target.x - p.x);
+        p.x += Math.cos(ang) * 9; p.y += Math.sin(ang) * 9;
 
-        // Энергетический заряд
-        ctx.fillStyle = '#00f0ff';
-        ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = p.tower.color;
+        ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI*2); ctx.fill();
 
-        if (Math.hypot(p.target.x - p.x, p.target.y - p.y) < 10) {
-          p.target.hp -= p.damage;
-          createExplosion(p.x, p.y, '#00f0ff', 6);
+        if (Math.hypot(p.target.x - p.x, p.target.y - p.y) < 8) {
+          p.target.hp -= p.tower.dmg;
+          if (p.tower.slow) p.target.slow = 50;
 
           if (p.target.hp <= 0) {
             const idx = enemies.indexOf(p.target);
             if (idx > -1) {
-              playSound('coin');
-              createExplosion(p.target.x, p.target.y, '#ffd700', 16);
-              gold += p.target.reward;
-              popups.push({ x: p.target.x, y: p.target.y, text: `+${p.target.reward} 💰`, life: 25 });
+              gold += p.target.isBoss ? 100 : 22;
+              save.crystals += p.target.isBoss ? 25 : 1;
               enemies.splice(idx, 1);
-              updateUI();
+              updateStats();
             }
           }
           projectiles.splice(i, 1);
         }
       }
 
-      // Частицы взрывов
-      for (let i = particles.length - 1; i >= 0; i--) {
-        const pt = particles[i];
-        pt.x += pt.vx; pt.y += pt.vy;
-        pt.life--;
-        ctx.fillStyle = pt.color;
-        ctx.globalAlpha = pt.life / pt.maxLife;
-        ctx.beginPath(); ctx.arc(pt.x, pt.y, pt.size, 0, Math.PI * 2); ctx.fill();
-        ctx.globalAlpha = 1.0;
-        if (pt.life <= 0) particles.splice(i, 1);
-      }
-
-      // Всплывающие надписи
-      for (let i = popups.length - 1; i >= 0; i--) {
-        const pop = popups[i];
-        pop.y -= 0.8; pop.life--;
-        ctx.fillStyle = '#ffd700';
-        ctx.font = 'bold 13px sans-serif';
-        ctx.fillText(pop.text, pop.x, pop.y);
-        if (pop.life <= 0) popups.splice(i, 1);
-      }
-
-      // Завершение волны
+      // Wave End Check
       if (waveActive && enemies.length === 0) {
         waveActive = false;
+        if (wave > save.records[currentSector]) save.records[currentSector] = wave;
+        
+        // Unlock next sector on wave 15
+        if (wave >= 15 && save.unlockedSector === currentSector && currentSector < 3) {
+          save.unlockedSector = currentSector + 1;
+          alert(`🎉 ПОБЕДА! Сектор ${currentSector} пройден! Открыт Сектор ${currentSector + 1}!`);
+        }
+
         wave++;
-        updateUI();
-        const btn = document.getElementById('nextWaveBtn');
-        btn.disabled = false; btn.style.opacity = '1';
-        btn.innerHTML = `<span>▶ Волна ${wave}</span>`;
+        persist();
+        const btn = document.getElementById('wave-btn');
+        btn.disabled = false;
+        btn.innerText = `▶ НАЧАТЬ ВОЛНУ ${wave}`;
       }
 
       requestAnimationFrame(gameLoop);
     }
 
+    updateStats();
     gameLoop();
   </script>
 </body>
